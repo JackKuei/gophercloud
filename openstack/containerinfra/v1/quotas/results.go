@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	"encoding/json"
+
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/pagination"
 )
@@ -15,6 +17,12 @@ type commonResult struct {
 // CreateResult is the response of a Create operations.
 type CreateResult struct {
 	commonResult
+}
+
+// DeleteResult is the result from a Delete operation. Call its ExtractErr
+// method to determine if the call succeeded or failed.
+type DeleteResult struct {
+	gophercloud.ErrResult
 }
 
 // GetResult represents the result of a get operation.
@@ -31,26 +39,6 @@ type UUID struct {
 	UUID string `json:"uuid"`
 }
 
-func (r CreateResult) Extract() (quotaID string, err error) {
-	var s *UUID
-	err = r.ExtractInto(&s)
-	if err == nil {
-		quotaID = s.UUID
-	}
-	return quotaID, err
-
-}
-
-func (r UpdateResult) Extract() (quotaID string, err error) {
-	var s *UUID
-	err = r.ExtractInto(&s)
-	if err == nil {
-		quotaID = s.UUID
-	}
-	return quotaID, err
-
-}
-
 // Extract is a function that accepts a result and extracts a quota resource.
 func (r commonResult) Extract() (*Quotas, error) {
 	var s *Quotas
@@ -65,6 +53,29 @@ type Quotas struct {
 	HardLimit int       `json:"hard_limit"`
 	ProjectID string    `json:"project_id"`
 	ID        string    `json:"id"`
+}
+
+func (r *Quotas) UnmarshalJSON(b []byte) error {
+	type tmp Quotas
+	var s struct {
+		tmp
+		ID interface{} `json:"id"`
+	}
+
+	err := json.Unmarshal(b, &s)
+	if err != nil {
+		return err
+	}
+	*r = Quotas(s.tmp)
+
+	switch t := s.ID.(type) {
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+		r.ID = fmt.Sprint(t)
+	case string:
+		r.ID = t
+	}
+
+	return nil
 }
 
 // QuotasPage is the page returned by a pager when traversing over a
@@ -96,24 +107,4 @@ func ExtractQuotas(r pagination.Page) ([]Quotas, error) {
 	}
 	err := (r.(QuotasPage)).ExtractInto(&s)
 	return s.Quotas, err
-}
-
-// DeleteResult is the result from a Delete operation. Call its ExtractErr
-// method to determine if the call succeeded or failed.
-type DeleteResult struct {
-	gophercloud.ErrResult
-}
-
-func (r DeleteResult) Extract() (string, error) {
-	requestID := ""
-	idKey := "X-Openstack-Request-Id"
-	if len(r.Header[idKey]) > 0 {
-		requestID = r.Header[idKey][0]
-		if requestID == "" {
-			return "", fmt.Errorf("No value for header %s", idKey)
-		}
-	} else {
-		return "", fmt.Errorf("Missing %s for header", idKey)
-	}
-	return requestID, r.ExtractErr()
 }

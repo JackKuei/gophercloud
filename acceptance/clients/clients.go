@@ -35,6 +35,9 @@ type AcceptanceTestChoices struct {
 	// NetworkName is the name of a network to launch the instance on.
 	NetworkName string
 
+	// ProjectName contains the name of a valid project.
+	ProjectName string
+
 	// ExternalNetworkID is the network ID of the external network.
 	ExternalNetworkID string
 
@@ -56,6 +59,7 @@ func AcceptanceTestChoicesFromEnv() (*AcceptanceTestChoices, error) {
 	flavorIDResize := os.Getenv("OS_FLAVOR_ID_RESIZE")
 	magnumImageID := os.Getenv("OS_MAGNUM_IMAGE_ID")
 	networkName := os.Getenv("OS_NETWORK_NAME")
+	projectName := os.Getenv("OS_PROJECT_NAME")
 	floatingIPPoolName := os.Getenv("OS_POOL_NAME")
 	externalNetworkID := os.Getenv("OS_EXTGW_ID")
 	shareNetworkID := os.Getenv("OS_SHARE_NETWORK_ID")
@@ -108,6 +112,7 @@ func AcceptanceTestChoicesFromEnv() (*AcceptanceTestChoices, error) {
 		FloatingIPPoolName: floatingIPPoolName,
 		MagnumImageID:      magnumImageID,
 		NetworkName:        networkName,
+		ProjectName:        projectName,
 		ExternalNetworkID:  externalNetworkID,
 		ShareNetworkID:     shareNetworkID,
 		DBDatastoreType:    dbDatastoreType,

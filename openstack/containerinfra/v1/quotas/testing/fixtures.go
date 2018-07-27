@@ -30,7 +30,7 @@ var CreateResponse = fmt.Sprintf(`
 var UpdateResponse = fmt.Sprintf(`
 										{
 										   "resource": "Cluster",
-										   "created_at": "2017-01-17T17:35:49+00:00",
+										   "created_at": "2017-01-17T17:35:48+00:00",
 										   "updated_at": "2017-01-17T17:38:20+00:00",
 										   "hard_limit": 10,
 										   "project_id": "%s",
@@ -41,8 +41,9 @@ var ExpectedQuota = quotas.Quotas{
 	Resource:  resourceType,
 	ProjectID: projectID,
 	HardLimit: 10,
-	CreatedAt: time.Date(2016, 8, 29, 6, 51, 31, 0, time.UTC),
-	UpdatedAt: time.Date(2016, 8, 29, 6, 53, 24, 0, time.UTC),
+	CreatedAt: time.Date(2017, 1, 17, 17, 35, 48, 0, time.UTC),
+	UpdatedAt: time.Date(2017, 1, 17, 17, 38, 20, 0, time.UTC),
+	ID:        "26",
 }
 
 func HandleCreateQuotaSuccessfully(t *testing.T) {
@@ -74,12 +75,12 @@ var ListResponse = fmt.Sprintf(`
 	"quotas": [
 		{
          "resource": "Cluster",
-         "created_at": "2017-01-17T17:35:49+00:00",
-         "updated_at": "2017-01-17T17:38:21+00:00",
+         "created_at": "2017-01-17T17:35:48+00:00",
+         "updated_at": "2017-01-17T17:38:20+00:00",
          "hard_limit": 10,
          "project_id": "%s",
          "id": 26
-		},
+		}
 	]
 }`, projectID)
 
@@ -99,7 +100,7 @@ func HandleListQuotasSuccessfully(t *testing.T) {
 }
 
 func HandleUpdateQuotaSuccessfully(t *testing.T) {
-	th.Mux.HandleFunc("/v1/quotas/"+projectID, func(w http.ResponseWriter, r *http.Request) {
+	th.Mux.HandleFunc("/v1/quotas/"+projectID+"/"+resourceType, func(w http.ResponseWriter, r *http.Request) {
 		th.TestMethod(t, r, "PATCH")
 		th.TestHeader(t, r, "X-Auth-Token", fake.TokenID)
 
