@@ -1,11 +1,15 @@
 package v1
 
 import (
+	"fmt"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/gophercloud/gophercloud"
 	"github.com/gophercloud/gophercloud/acceptance/clients"
 	"github.com/gophercloud/gophercloud/acceptance/tools"
+	"github.com/gophercloud/gophercloud/openstack/containerinfra/v1/clusters"
 	"github.com/gophercloud/gophercloud/openstack/containerinfra/v1/clustertemplates"
 	th "github.com/gophercloud/gophercloud/testhelper"
 )
@@ -81,3 +85,106 @@ func DeleteClusterTemplate(t *testing.T, client *gophercloud.ServiceClient, id s
 	return
 }
 */
+
+// CreateCluster will create a random cluster. An error will be returned if the
+// cluster-template could not be created.
+func CreateCluster(t *testing.T, client *gophercloud.ServiceClient, clusterTemplateID string) (string, error) {
+	clusterName := tools.RandomString("TESTACC-", 8)
+	t.Logf("Attempting to create cluster: %s using template %s", clusterName, clusterTemplateID)
+
+	choices, err := clients.AcceptanceTestChoicesFromEnv()
+	if err != nil {
+		return "", err
+	}
+
+	masterCount := 1
+	nodeCount := 1
+	createTimeout := 100
+	createOpts := clusters.CreateOpts{
+		Name:              clusterName,
+		DiscoveryURL:      "",
+		MasterCount:       &masterCount,
+		ClusterTemplateID: clusterTemplateID,
+		NodeCount:         &nodeCount,
+		CreateTimeout:     &createTimeout,
+		KeyPair:           "",
+		MasterFlavorID:    "",
+		Labels:            map[string]string{},
+		FlavorID:          choices.FlavorID,
+	}
+
+	createResult := clusters.Create(client, createOpts)
+	th.AssertNoErr(t, createResult.Err)
+	if len(createResult.Header["X-Openstack-Request-Id"]) > 0 {
+		t.Logf("Cluster Create Request ID: %s", createResult.Header["X-Openstack-Request-Id"][0])
+	}
+
+	clusterID, err := createResult.Extract()
+	if err != nil {
+		return "", err
+	} else {
+		t.Logf("Cluster created: %+v", clusterID)
+	}
+
+	err = WaitForCluster(client, clusterID, "CREATE_COMPLETE")
+	if err != nil {
+		return clusterID, err
+	}
+
+	t.Logf("Successfully created cluster: %s id: %s", clusterName, clusterID)
+	return clusterID, nil
+}
+
+func DeleteCluster(t *testing.T, client *gophercloud.ServiceClient, id string) {
+	t.Logf("Attempting to delete cluster: %s", id)
+
+	deleteRequestID, err := clusters.Delete(client, id).Extract()
+	if err != nil {
+		t.Fatalf("Error deleting cluster. requestID=%s clusterID=%s: err%s:", deleteRequestID, id, err)
+	}
+
+	err = WaitForCluster(client, id, "DELETE_COMPLETE")
+	if err != nil {
+		t.Fatalf("Error deleting cluster %s: %s:", id, err)
+	}
+
+	t.Logf("Successfully deleted cluster: %s", id)
+
+	return
+}
+
+// GetActionID parses an HTTP header and returns the action ID.
+func GetActionID(headers http.Header) (string, error) {
+	location := headers.Get("Location")
+	v := strings.Split(location, "actions/")
+	if len(v) < 2 {
+		return "", fmt.Errorf("unable to determine action ID")
+	}
+
+	actionID := v[1]
+
+	return actionID, nil
+}
+
+func WaitForCluster(client *gophercloud.ServiceClient, clusterID string, status string) error {
+	return tools.WaitFor(func() (bool, error) {
+		cluster, err := clusters.Get(client, clusterID).Extract()
+		if err != nil {
+			if _, ok := err.(gophercloud.ErrDefault404); ok && status == "DELETE_COMPLETE" {
+				return true, nil
+			}
+
+			return false, err
+		}
+
+		if cluster.Status == status {
+			return true, nil
+		}
+
+		if strings.Contains(cluster.Status, "FAILED") {
+			return false, fmt.Errorf("Cluster %s FAILED. Status=%s StatusReason=%s", clusterID, cluster.Status, cluster.StatusReason)
+		}
+
+		return false, nil
+	})
+}
